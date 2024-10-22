@@ -25,8 +25,26 @@ The following diagram visualizes the components and their interactions:
 
 ## Usage
 
-Start local Solana network in docker:
+### Local Development
 
-```bash
-./scripts/test_up.sh
+Use the `test_up` script to run a local solana test validator.
+The script does the following:
+- Creates a new container to run `solana-test-validator`
+- Creates keypairs
+- Requests airdrop for the keypairs
+- Deploys programs given in `./programs/local` directory (takes only the `*.so` files)
+
+```shell
+./scripts/test_up.sh -h     
+# Usage: ./scripts/test_up.sh [OPTIONS]
+#  
+# Options:
+#   -h   Help
+#   -c   Cleanup (and stop) current or previous local validator; false (default)
+#   -n   Number of accounts to create; 2 (default)
+#   -d   Program/s to deploy; * (default)
+# 
+# Example: (create 5 accounts, avoid program deployments and cleanup previous state)
+#   > ./scripts/test_up.sh -n 5 -d false -c
 ```
+
