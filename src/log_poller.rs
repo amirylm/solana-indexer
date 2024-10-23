@@ -81,6 +81,7 @@ impl LogPoller {
                                             let sig = Signature::from_str(signature.signature.as_str()).unwrap();
                                             match client.get_transaction(&sig, UiTransactionEncoding::Json) {
                                                 Ok(tx) => {
+                                                    // TODO: parse logs, should be similar to https://github.com/smartcontractkit/chainlink-internal-integrations/blob/73913765eba441abafab26218dc60ab36ecde975/solana/integration-tests/utils/anchor.go#L108
                                                     println!("[log_poller] Fetched tx for account keys {:?}", tx.transaction.meta);
                                                 },
                                                 Err(e) => {

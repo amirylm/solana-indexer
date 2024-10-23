@@ -1,5 +1,8 @@
 # solana-indexer
-Solana indexer for tracking blocks, programs and event logs.
+
+POC Solana indexer for tracking blocks, programs and event logs.
+
+**WIP**
 
 ## Overview
 

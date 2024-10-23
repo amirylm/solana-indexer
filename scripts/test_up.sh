@@ -1,6 +1,6 @@
 #!/bin/bash
 NUM_OF_ACCOUNTS="${NUM_OF_ACCOUNTS:-2}"
-DEPOLY_PROGRAMS="${DEPOLY_PROGRAMS:-*}"
+DEPOLY_PROGRAM="${DEPOLY_PROGRAM:-*}"
 
 usage() {
  echo "Usage: $0 [OPTIONS]"
@@ -9,10 +9,13 @@ usage() {
  echo "  -h   Help"
  echo "  -c   Cleanup (and stop) current or previous local validator; false (default)"
  echo "  -n   Number of accounts to create; 2 (default)"
- echo "  -d   Program/s to deploy; * (default)"
+ echo "  -d   Program to deploy (or \"*\" to depoly all programs); none (default)"
  echo " "
- echo "Example: (create 5 accounts, avoid program deployments and cleanup previous state)"
- echo "  > ./scripts/test_up.sh -n 5 -d false -c"
+ echo "Examples: "
+ echo "  cleanup previous state, create & fund 2 accounts (default) & deploy all programs in ./programs/local:"
+ echo "  > ./scripts/test_up.sh -c -d \"*\""
+ echo "  create & fund 1 account and deploy a single program"
+ echo "  > ./scripts/test_up.sh -n 0 -d helloworld"
 }
 
 while getopts "hcnd:" flag; do
@@ -28,7 +31,7 @@ while getopts "hcnd:" flag; do
    NUM_OF_ACCOUNTS=$OPTARG
    ;;
    d)
-   DEPOLY_PROGRAMS=$OPTARG
+   DEPOLY_PROGRAM=$OPTARG
    ;;
    \?)
    echo "Invalid option"
@@ -54,7 +57,7 @@ if [ ! "$(docker ps -a -q -f name=solana-test-validator)" ]; then
         -p 8900:8900/tcp \
         -p 9900:9900/tcp \
         -e NUM_OF_ACCOUNTS="$NUM_OF_ACCOUNTS" \
-        -e DEPOLY_PROGRAMS="$DEPOLY_PROGRAMS" \
+        -e DEPOLY_PROGRAM="$DEPOLY_PROGRAM" \
         nixos/nix bash \
         -c "nix-env -iA nixpkgs.bzip2 && nix-env -iA nixpkgs.solana-cli && solana-test-validator --ledger test-ledger"
        
@@ -68,7 +71,7 @@ echo "> local solana-test-validator is running, booting..."
 
 docker exec solana-test-validator /bin/sh /test-ledger/boot_test_validator.sh || exit 1
 
-echo "> solana-test-validator is ready"
+echo "> solana-test-validator is ready, openning explorer"
 
 open https://explorer.solana.com/?cluster=custom\&customUrl=http%3A%2F%2Flocalhost%3A8899
 
