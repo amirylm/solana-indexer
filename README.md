@@ -15,6 +15,7 @@ The indexer can be configured with addresses of programs to track. It allows for
 The indexer consists of the following components:
 
 - **Solana RPC client**: responsible for interacting with the Solana blockchain
+    - **NOTE** using both HTTP and Websocket RPCs
 - **Slot subscriber**: subscribes to new slots ([slot_subscribe](https://solana.com/docs/rpc/websocket/slotsubscribe)) using websocket and notifies block & log pollers upon new slot/s
 - **Block poller**: polls for new blocks ([get_blocks](https://solana.com/docs/rpc/#getconfirmedblocks)) and fetch corresponding information ([get_block](https://solana.com/docs/rpc/#getblock)) for each one
 - **Log subscriber**: subscribes to logs ([logs_subscribe](https://solana.com/docs/rpc/websocket/logssubscribe)) using websocket and notifies log poller upon new log for some address. \
@@ -31,7 +32,8 @@ The following diagram visualizes the components and their interactions:
 ### Local Development
 
 Use the `test_up` script to run a local solana test validator.
-The script does the following:
+The script does the following steps, where all steps are optional and can be controlled via flags:
+- Cleans up previous state, if any 
 - Creates a new container to run `solana-test-validator`
 - Creates keypairs
 - Requests airdrop for the keypairs
