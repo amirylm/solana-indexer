@@ -1,4 +1,3 @@
-use std::sync::{Arc, atomic::{self, AtomicBool}};
 use crossbeam_channel::Receiver;
 use futures_util::StreamExt;
 use solana_client::{
@@ -7,6 +6,23 @@ use solana_client::{
     rpc_response::RpcLogsResponse,
 };
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
+use std::sync::{
+    atomic::{self, AtomicBool},
+    Arc,
+};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LogNotification {
+    pub raw: RpcLogsResponse,
+    pub addr: String,
+    pub slot: u64,
+}
+
+impl LogNotification {
+    pub fn new(raw: RpcLogsResponse, addr: String, slot: u64) -> Self {
+        Self { raw, addr, slot }
+    }
+}
 
 pub struct LogSubscriber {
     ws_url: String,
@@ -28,7 +44,7 @@ impl LogSubscriber {
         self.is_running.store(false, atomic::Ordering::Relaxed);
     }
 
-    pub async fn run(&self) -> Result<Receiver<RpcLogsResponse>, Box<dyn std::error::Error>> {
+    pub async fn run(&self) -> Result<Receiver<LogNotification>, Box<dyn std::error::Error>> {
         let (sender, receiver) = crossbeam_channel::bounded(32);
         self.is_running.store(true, atomic::Ordering::Relaxed);
         let addrs = self.addrs.clone();
@@ -37,6 +53,7 @@ impl LogSubscriber {
             let ws_url = ws_url.clone();
             let sender = sender.clone();
             let is_running = self.is_running.clone();
+            let addr_cp = addr.clone();
             tokio::spawn(async move {
                 if let Err(e) = async {
                     println!("[log_subscriber] Subscribing to logs for address: {}", addr);
@@ -50,7 +67,13 @@ impl LogSubscriber {
                     let (mut slot_stream, unsubscriber) =
                         ps_client.logs_subscribe(filter, cfg).await?;
                     while let Some(logs_info) = slot_stream.next().await {
-                        sender.send(logs_info.value).unwrap();
+                        sender
+                            .send(LogNotification::new(
+                                logs_info.value,
+                                addr_cp.clone(),
+                                logs_info.context.slot,
+                            ))
+                            .unwrap();
                         if !is_running.load(atomic::Ordering::Relaxed) {
                             break;
                         }
@@ -60,7 +83,10 @@ impl LogSubscriber {
                 }
                 .await
                 {
-                    eprintln!("[log_subscriber] Error subscribing to logs for address {}: {:?}", addr, e);
+                    eprintln!(
+                        "[log_subscriber] Error subscribing to logs for address {}: {:?}",
+                        addr, e
+                    );
                 }
             });
         }
