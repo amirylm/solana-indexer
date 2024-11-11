@@ -1,6 +1,5 @@
 #!/bin/bash
 NUM_OF_ACCOUNTS="${NUM_OF_ACCOUNTS:-2}"
-DEPOLY_PROGRAM="${DEPOLY_PROGRAM:-*}"
 
 usage() {
  echo "Usage: $0 [OPTIONS]"
@@ -70,6 +69,8 @@ fi
 echo "> local solana-test-validator is running, booting..."
 
 docker exec solana-test-validator /bin/sh /test-ledger/boot_test_validator.sh || exit 1
+
+cd output/local && (find ../../programs/local/ -type f -name 'RM*.json' -delete || echo "adding new keypairs")&& for keypair in RM*.json; do cp "$keypair" ../../programs/local/; done && cd ../../
 
 echo "> solana-test-validator is ready, openning explorer"
 
