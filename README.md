@@ -25,13 +25,18 @@ Spin up a local solana test validator to test the indexer.
 
 ```shell
 ./scripts/localnet/up.sh
+### start with previous storage cleanup: 
+# clean_volume=y ./scripts/localnet/up.sh
 ```
 
 Take down the local solana test validator.
 
 ```shell
 ./scripts/localnet/down.sh
+### with storage cleanup: 
+# clean_volume=y ./scripts/localnet/down.sh
 ```
+
 
 #### deploy programs
 

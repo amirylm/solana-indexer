@@ -10,4 +10,9 @@ else
     echo "No docker test validator container running.";
 fi
 
+if [[ $clean_volume ]]; then
+    echo "Cleaning up dev volume"
+    rm -rf output/localnet
+fi
+
 echo "Cleanup finished."

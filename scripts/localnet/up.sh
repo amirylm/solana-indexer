@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-bash "$(dirname -- "$0";)/down.sh"
+source "$(dirname -- "$0";)/down.sh"
 
 startup_timeout=20
 container_name="solana-test-validator"
