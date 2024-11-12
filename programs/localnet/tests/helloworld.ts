@@ -5,6 +5,7 @@ import { Helloworld } from "../target/types/helloworld";
 
 describe("helloworld", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
+  // const user = anchor.web3.Keypair.generate();
   const program = anchor.workspace.Helloworld as Program<Helloworld>;
   type Event = anchor.IdlEvents<typeof program["idl"]>;
   const getEvent = async <E extends keyof Event>(
