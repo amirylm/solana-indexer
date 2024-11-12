@@ -13,9 +13,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let txs_batch_size = get_env("SOL_BATCH_SIZE", "100").parse::<usize>()?;
     let block_time = get_env("SOL_BLOCK_TIME", "5000").parse::<u64>()?; // ms
     let head_slot = get_env("SOL_HEAD_SLOT", "0").parse::<u64>()?;
-    let head_sig = get_env("SOL_HEAD_SIG", format!("0x{:0>64x}", 0).as_str());
+    let head_sig = get_env("SOL_HEAD_SIG", format!("{:0>44x}", 0).as_str());
     let tail_slot = get_env("SOL_TAIL_SLOT", "0").parse::<u64>()?;
-    let tail_sig = get_env("SOL_TAIL_SIG", format!("0x{:0>64x}", 0).as_str());
+    let tail_sig = get_env("SOL_TAIL_SIG", format!("{:0>44x}", 0).as_str());
 
     let client = RpcClientWrapper::new(rpc_url.clone());
 
