@@ -1,4 +1,5 @@
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signature};
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
@@ -26,7 +27,7 @@ impl Cursor {
                 sig: RwLock::new(signature),
             },
             Err(e) => {
-                eprintln!("[cursor/new] Error parsing signature: {:?}", e);
+                eprintln!("[cursor/new] could not parse signature {}: {:?}", sig.clone(), e);
                 Self {
                     slot: AtomicU64::new(slot),
                     sig: RwLock::new(Signature::default()),
@@ -47,6 +48,7 @@ impl Cursor {
         self.slot.load(Ordering::Relaxed)
     }
 
+    // TOOD: use signature and uncomment this
     // get_sig returns the signature of the Cursor
     // fn get_sig(&self) -> Signature {
     //     let r = self.sig.read().unwrap();
@@ -102,18 +104,14 @@ impl EventLoader {
             self.program_addr, head_slot, tail_slot, last_confirmed_slot, last_finalized_slot
         );
         match self.backfill(last_finalized_slot).await {
-            Ok(_) => {
-                println!("[event_loader/poll] Backfilled");
-            }
+            Ok(_) => {},
             Err(e) => {
                 eprintln!("[event_loader/poll] Error backfilling: {:?}", e);
                 return Err(e);
             }
         }
         match self.load_confirmed_events(last_confirmed_slot).await {
-            Ok(_) => {
-                println!("[event_loader/poll] Loaded confirmed events");
-            }
+            Ok(_) => {}
             Err(e) => {
                 eprintln!(
                     "[event_loader/poll] Error loading confirmed events: {:?}",
@@ -133,7 +131,8 @@ impl EventLoader {
             self.program_addr, target_slot
         );
         let mut tail_slot = self.tail_cursor.get_slot();
-        while target_slot > tail_slot {
+        let mut seen_txs = HashMap::new();
+        while target_slot >= tail_slot {
             match self
                 .client
                 .get_sigs_for_addr(
@@ -146,11 +145,25 @@ impl EventLoader {
                 )
                 .await
             {
-                Ok(mut txs) => {
+                Ok(txs_resp) => {
+                    let mut txs = txs_resp
+                        .iter()
+                        .filter(|tx| !seen_txs.contains_key(&tx.signature))
+                        .collect::<Vec<_>>();
+                    if txs.is_empty() {
+                        return Ok(());
+                    }
+                    println!(
+                        "[event_loader/backfill] Found {} txs for addr {} on slot {} while target slot is {}",
+                        txs_resp.len(),
+                        self.program_addr,
+                        tail_slot,
+                        target_slot
+                    );
                     txs.sort_by(|a, b| a.slot.cmp(&b.slot));
                     for tx_status in txs.iter() {
                         if tail_slot >= tx_status.slot {
-                            break;
+                            continue;
                         }
                         let sig = Signature::from_str(tx_status.signature.as_str())?;
                         println!(
@@ -176,6 +189,7 @@ impl EventLoader {
                                     tx_status.signature.clone(),
                                     logs,
                                 );
+                                seen_txs.insert(tx_status.signature.clone(), tx_status.slot);
                             }
                             Err(e) => {
                                 eprintln!("[event_loader/backfill] Error fetching tx: {:?}", e);
@@ -183,19 +197,19 @@ impl EventLoader {
                             }
                         }
                     }
-                    let last_tx = txs.last().unwrap();
-
-                    if tail_slot < last_tx.slot {
-                        tail_slot = last_tx.slot;
-                        println!(
-                            "[event_loader/backfill] Updating tail_cursor to (slot={}, sig={})",
-                            last_tx.slot,
-                            last_tx.signature.as_str()
-                        );
-                        self.tail_cursor.update(
-                            last_tx.slot,
-                            Signature::from_str(last_tx.signature.as_str())?,
-                        );
+                    if let Some(last_tx) = txs.last().or(None) {
+                        if tail_slot < last_tx.slot {
+                            tail_slot = last_tx.slot;
+                            println!(
+                                "[event_loader/backfill] Updating tail_cursor to (slot={}, sig={})",
+                                last_tx.slot,
+                                last_tx.signature.as_str()
+                            );
+                            self.tail_cursor.update(
+                                last_tx.slot,
+                                Signature::from_str(last_tx.signature.as_str())?,
+                            );
+                        }
                     }
                 }
                 Err(e) => {
@@ -214,7 +228,12 @@ impl EventLoader {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let pk = Pubkey::from_str(self.program_addr.as_str())?;
         let mut head_slot = self.head_cursor.get_slot();
-        while target_slot > head_slot {
+        let mut seen_txs = HashMap::new();
+        println!(
+            "[event_loader/backfill] Loading confirmed events for addr {} to slot {}",
+            self.program_addr, target_slot
+        );
+        while target_slot >= head_slot {
             match self
                 .client
                 .get_sigs_for_addr(
@@ -227,7 +246,14 @@ impl EventLoader {
                 )
                 .await
             {
-                Ok(mut txs) => {
+                Ok(txs_resp) => {
+                    let mut txs = txs_resp
+                        .iter()
+                        .filter(|tx| !seen_txs.contains_key(&tx.signature))
+                        .collect::<Vec<_>>();
+                    if txs.is_empty() {
+                        return Ok(());
+                    }
                     txs.sort_by(|a, b| a.slot.cmp(&b.slot));
                     for tx_status in txs.iter() {
                         let sig = Signature::from_str(tx_status.signature.as_str())?;
@@ -254,6 +280,7 @@ impl EventLoader {
                                     tx_status.signature.clone(),
                                     logs,
                                 );
+                                seen_txs.insert(tx_status.signature.clone(), tx_status.slot);
                             }
                             Err(e) => {
                                 eprintln!(
