@@ -48,12 +48,11 @@ impl Cursor {
         self.slot.load(Ordering::Relaxed)
     }
 
-    // TOOD: use signature and uncomment this
     // get_sig returns the signature of the Cursor
-    // fn get_sig(&self) -> Signature {
-    //     let r = self.sig.read().unwrap();
-    //     *r
-    // }
+    fn get_sig(&self) -> Signature {
+        let r = self.sig.read().unwrap();
+        *r
+    }
 }
 
 // EventLoader loads log events from the Solana blockchain for a given program address.
@@ -99,18 +98,19 @@ impl EventLoader {
             .client
             .get_slot(Some(CommitmentConfig::finalized()))
             .await?;
+        let slot_buffer = 100;
         println!(
             "[event_loader/poll] Polling for addr {} with head_slot={}, tail_slot={}, last_confirmed_slot={}, last_finalized_slot={}",
             self.program_addr, head_slot, tail_slot, last_confirmed_slot, last_finalized_slot
         );
-        match self.backfill(last_finalized_slot).await {
+        match self.backfill(last_finalized_slot - (slot_buffer*10)).await {
             Ok(_) => {},
             Err(e) => {
                 eprintln!("[event_loader/poll] Error backfilling: {:?}", e);
                 return Err(e);
             }
         }
-        match self.load_confirmed_events(last_confirmed_slot).await {
+        match self.load_confirmed_events(last_confirmed_slot - slot_buffer).await {
             Ok(_) => {}
             Err(e) => {
                 eprintln!(
@@ -131,16 +131,17 @@ impl EventLoader {
             self.program_addr, target_slot
         );
         let mut tail_slot = self.tail_cursor.get_slot();
+        let mut tail_sig = self.tail_cursor.get_sig();
         let mut seen_txs = HashMap::new();
         while target_slot >= tail_slot {
             match self
                 .client
                 .get_sigs_for_addr(
                     &pk,
-                    tail_slot,
+                    tail_slot + 1,
                     self.batch_size,
                     Some(CommitmentConfig::finalized()),
-                    None,
+                    Some(tail_sig),
                     None,
                 )
                 .await
@@ -151,10 +152,14 @@ impl EventLoader {
                         .filter(|tx| !seen_txs.contains_key(&tx.signature))
                         .collect::<Vec<_>>();
                     if txs.is_empty() {
+                        self.tail_cursor.update(
+                            target_slot,
+                            self.tail_cursor.get_sig(),
+                        );
                         return Ok(());
                     }
                     println!(
-                        "[event_loader/backfill] Found {} txs for addr {} on slot {} while target slot is {}",
+                        "[event_loader/backfill] Found {} txs for addr {} on tail_slot {} while target_slot is {}",
                         txs_resp.len(),
                         self.program_addr,
                         tail_slot,
@@ -162,9 +167,6 @@ impl EventLoader {
                     );
                     txs.sort_by(|a, b| a.slot.cmp(&b.slot));
                     for tx_status in txs.iter() {
-                        if tail_slot >= tx_status.slot {
-                            continue;
-                        }
                         let sig = Signature::from_str(tx_status.signature.as_str())?;
                         println!(
                             "[event_loader/backfill] Visiting tx (slot={}, sig={}, addr={})",
@@ -200,6 +202,7 @@ impl EventLoader {
                     if let Some(last_tx) = txs.last().or(None) {
                         if tail_slot < last_tx.slot {
                             tail_slot = last_tx.slot;
+                            tail_sig = Signature::from_str(last_tx.signature.as_str())?;
                             println!(
                                 "[event_loader/backfill] Updating tail_cursor to (slot={}, sig={})",
                                 last_tx.slot,
@@ -207,7 +210,7 @@ impl EventLoader {
                             );
                             self.tail_cursor.update(
                                 last_tx.slot,
-                                Signature::from_str(last_tx.signature.as_str())?,
+                                tail_sig.clone(),
                             );
                         }
                     }
@@ -228,6 +231,7 @@ impl EventLoader {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let pk = Pubkey::from_str(self.program_addr.as_str())?;
         let mut head_slot = self.head_cursor.get_slot();
+        let mut head_sig = self.head_cursor.get_sig();
         let mut seen_txs = HashMap::new();
         println!(
             "[event_loader/backfill] Loading confirmed events for addr {} to slot {}",
@@ -238,10 +242,10 @@ impl EventLoader {
                 .client
                 .get_sigs_for_addr(
                     &pk,
-                    head_slot,
+                    head_slot + 1,
                     self.batch_size,
                     Some(CommitmentConfig::confirmed()),
-                    None,
+                    Some(head_sig),
                     None,
                 )
                 .await
@@ -252,6 +256,10 @@ impl EventLoader {
                         .filter(|tx| !seen_txs.contains_key(&tx.signature))
                         .collect::<Vec<_>>();
                     if txs.is_empty() {
+                        self.head_cursor.update(
+                            target_slot,
+                            self.head_cursor.get_sig(),
+                        );
                         return Ok(());
                     }
                     txs.sort_by(|a, b| a.slot.cmp(&b.slot));
@@ -294,6 +302,7 @@ impl EventLoader {
                     let last_tx = txs.last().unwrap();
                     if head_slot < last_tx.slot {
                         head_slot = last_tx.slot;
+                        head_sig = Signature::from_str(last_tx.signature.as_str())?;
                         println!(
                         "[event_loader/load_confirmed_events] Updating head_cursor to (slot={}, sig={})",
                         last_tx.slot,
@@ -301,7 +310,7 @@ impl EventLoader {
                     );
                         self.head_cursor.update(
                             last_tx.slot,
-                            Signature::from_str(last_tx.signature.as_str())?,
+                            head_sig.clone(),
                         );
                     }
                 }

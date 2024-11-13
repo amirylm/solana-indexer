@@ -33,8 +33,8 @@ if [[ "keypair.json" != "$keypair" ]]; then
     # update keypair reference
     sed -i -e "s|keypair.json|$keypair|g" "Anchor.toml" && rm "Anchor.toml-e" 2>/dev/null
 fi
-export RUST_BACKTRACE=1
+# export RUST_BACKTRACE=1
 if [ ! -f "target/deploy/$app.so" ] || [[ $force_build ]]; then
-    echo "building $app wit anchor:"  && RUST_BACKTRACE=1 anchor build --program-name "$app" || exit 1
+    echo "building $app with anchor:"  && anchor build --program-name "$app" || exit 1
 fi
-echo "deploying $app anchor:" && anchor deploy --program-name "$app" || exit 1
+echo "deploying $app with anchor:" && anchor deploy --program-name "$app" || exit 1
